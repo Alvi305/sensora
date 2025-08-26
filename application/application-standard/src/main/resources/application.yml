@@ -16,26 +16,26 @@ spring:
       hibernate.type.wrapper_array_handling: ALLOW
       hibernate.naming.physical-strategy: org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy
   datasource:
-    #    url: "${SPRING_DATASOURCE_URL:jdbc:postgresql://192.168.45.115:5432/postgres}"
-    #    username: "${SPRING_DATASOURCE_USERNAME:postgres}"
-    #    password: "${SPRING_DATASOURCE_PASSWORD:postgres}"
-    #    driverClassName: "${SPRING_DRIVER_CLASS_NAME:org.postgresql.Driver}"
-    url: "${SPRING_DATASOURCE_URL:jdbc:h2:file:~/beaver-iot/h2/beaver;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1}"
-    username: "${SPRING_DATASOURCE_USERNAME:sa}"
-    password: "${SPRING_DATASOURCE_PASSWORD:}"
-    driverClassName: "${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}"
+    url: "${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5452/sensora}"
+    username: "${SPRING_DATASOURCE_USERNAME:postgres}"
+    password: "${SPRING_DATASOURCE_PASSWORD:ruth}"
+    driverClassName: "${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}"
+    #    url: "${SPRING_DATASOURCE_URL:jdbc:h2:file:~/beaver-iot/h2/beaver;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1}"
+    #    username: "${SPRING_DATASOURCE_USERNAME:sa}"
+    #    password: "${SPRING_DATASOURCE_PASSWORD:}"
+    #    driverClassName: "${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}"
     hikari:
       connection-timeout: 5000
   liquibase:
     enabled: true
     contexts: init,dev,prod,test
-    change-log: 'classpath*:db/${DB_TYPE:h2}/changelog.yaml'
-  h2:
-    console:
-      enabled: ${SPRING_H2_CONSOLE_ENABLED:false}
-      path: /public/h2-console
-      settings:
-        webAllowOthers: true
+    change-log: classpath:db/postgres/changelog.yaml
+#  h2:
+#    console:
+#      enabled: ${SPRING_H2_CONSOLE_ENABLED:false}
+#      path: /public/h2-console
+#      settings:
+#        webAllowOthers: true
   cache:
     #    type: caffeine
     #    cache-names: "resource:data-pre-sign"

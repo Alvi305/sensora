@@ -11,7 +11,7 @@ import java.lang.annotation.Target;
 /**
  * @author leon
  */
-@Target({ElementType.FIELD})
+@Target({ElementType.TYPE, ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Entity {
 

@@ -1,24 +1,13 @@
 package com.milesight.beaveriot.mqtt.model;
 
-import com.milesight.beaveriot.context.integration.entity.annotation.Entity;
-import jakarta.persistence.Column;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.UniqueConstraint;
-import lombok.*;
+import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
-import jakarta.persistence.Table;
 import lombok.Data;
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(
-        name = "sensor_readings",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uq_sensor_reading_tenant_eui_fcnt", columnNames = {"tenant_id", "dev_eui", "fcnt"})
-        }
-)
+@Table(name = "sensor_readings")
 @Data
 public class SensorReading {
     @Id

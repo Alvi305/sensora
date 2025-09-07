@@ -21,8 +21,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.lang.Long.getLong;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -62,7 +60,7 @@ public class SensorReadingMqttSubscriber {
         SensorReading reading = new SensorReading();
         reading.setTenantId(msg.getTenantId());
 
-// 1) Extract identifiers from KV (existing behavior)
+        // Extract identifiers from KV (existing behavior)
         reading.setDevEui(firstNonNull(
                 kv.get("device eui"),
                 kv.get("device eui group name"),
@@ -97,26 +95,26 @@ public class SensorReadingMqttSubscriber {
                 kv.get("f cnt")
         )));
 
-        // 2) Telemetry from top-level JSON (existing)
+        // Telemetry from top-level JSON (existing)
         reading.setTemperature(getDouble(node, "temperature"));
         reading.setHumidity(getDouble(node, "humidity"));
         reading.setBattery(getDouble(node, "battery"));
 
 
-        // 3) Extract identifiers and fields from JSON aliases (snake_case + camelCase)
+        // Extract identifiers and fields from JSON aliases
         if (node != null) {
             if (isBlank(reading.getDevEui())) {
                 reading.setDevEui(firstNonNull(
                         asText(node, "dev_eui"),
-                        asText(node, "deveui"),
                         asText(node, "devEui"),
-                        asText(node, "deviceEui")
+                        asText(node, "deviceEui"),
+                        asText(node, "Device EUI/Group Name")
                 ));
             }
             if (isBlank(reading.getGwEui())) {
                 reading.setGwEui(firstNonNull(
                         asText(node, "gw_eui"),
-                        asText(node, "gweui"),
+                        asText(node, "GwEUI"),
                         asText(node, "gwEui"),
                         asText(node, "gatewayEui")
                 ));
@@ -124,26 +122,25 @@ public class SensorReadingMqttSubscriber {
             if (isBlank(reading.getAppEui())) {
                 reading.setAppEui(firstNonNull(
                         asText(node, "app_eui"),
-                        asText(node, "appeui"),
+                        asText(node, "AppEUI"),
                         asText(node, "appEui")
                 ));
             }
             if (isBlank(reading.getDevAddr())) {
                 reading.setDevAddr(firstNonNull(
                         asText(node, "dev_addr"),
-                        asText(node, "devAddr")
+                        asText(node, "devAddr"),
+                        asText(node, "Dev Addr/Multicast Addr")
                 ));
             }
 
-//            if (reading.getFcnt() == null) {
-//                Long fcntFromJson = firstNonNull(
-//                        getLong(node, "fcnt"),
-//                        getLong(node, "FCnt")
-//                );
-//                reading.setFcnt(fcntFromJson);
-//            }
+            if (reading.getFcnt() == null) {
+                Long f1 = getLong(node, "fcnt");
+                Long f2 = (f1 != null) ? null : getLong(node, "FCnt");
+                reading.setFcnt(f1 != null ? f1 : f2);
+            }
 
-            // If telemetry may be nested under "payload", merge it in
+
             if (node.has("payload")) {
                 JsonNode p = node.get("payload");
                 if (reading.getTemperature() == null) reading.setTemperature(getDouble(p, "temperature"));
@@ -152,19 +149,18 @@ public class SensorReadingMqttSubscriber {
             }
         }
 
-        // 4) Normalize EUIs (uppercase, strip separators) but null-safe
+        // Normalize EUIs
         reading.setDevEui(stdEui(reading.getDevEui()));
         reading.setGwEui(stdEui(reading.getGwEui()));
         reading.setAppEui(stdEui(reading.getAppEui()));
 
-        // 5) Validate required fields
+        // Validate required fields
         if (isBlank(reading.getTenantId()) || isBlank(reading.getDevEui())) {
             log.warn("Missing tenantId/devEui; skipping persist. tenantId={} devEui={} topic={}",
                     reading.getTenantId(), reading.getDevEui(), msg.getFullTopicName());
             return;
         }
 
-        // 6) Persist
         try {
             repository.save(reading);
             log.debug("Saved SensorReading tenant={} devEUI={} fcnt={} temp={} hum={} batt={}",
@@ -181,7 +177,7 @@ public class SensorReadingMqttSubscriber {
     {
         Map<String, String> map = new LinkedHashMap<>();
         for (String rawLine : text.split("\\r?\\n")) {
-            String line = rawLine == null ? "" : rawLine.trim();
+            String line = rawLine.trim();
             if (line.isEmpty()) continue;
 
             // JSON block starts; stop parsing KV
@@ -219,18 +215,13 @@ public class SensorReadingMqttSubscriber {
                     "RSSI"
             };
 
-            boolean captured = false;
             for (String k : knownKeys) {
                 if (line.toLowerCase(Locale.ROOT).startsWith(k.toLowerCase(Locale.ROOT))) {
                     String key = normalizeKey(k);
                     String val = line.substring(k.length()).trim();
                     map.put(key, val);
-                    captured = true;
                     break;
                 }
-            }
-            if (!captured) {
-                // Not a KV line, ignore (could be headers like "Packet Details", "JSON", etc.)
             }
         }
         return map;

@@ -1,14 +1,45 @@
 {
-  "dev_eui": "24E124785F207114",
-  "devEui": "24E124785F207123",
-  "deveui": "24E124785F207114",
+  "dev_eui": "24E124785F168056",
+  "devEui": "24E124785F168056",
+  "devEUI": "24E124785F168056",
   "gw_eui": "24E124FFFEFE92AD",
   "gwEui": "24E124FFFEFE92AD",
-  "app_eui": "0000000000000000",
-  "appEui": "0000000000000000",
-  "dev_addr": "F2071142",
-  "fcnt": 47679,
-  "temperature": 24.7,
-  "humidity": 39.4,
-  "battery": 93
+  "gwEUI": "24E124FFFEFE92AD",
+  "app_eui": "24E124C0002A0002",
+  "appEui": "24E124C0002A0002",
+  "appEUI": "24E124C0002A0002",
+  "dev_addr": "060A93DA",
+  "devAddr": "060A93DA",
+
+  "classType": "Class A",
+  "immediately": true,
+  "timestamp": 3361805853,
+  "type": "UpUnc",
+  "adr": true,
+  "adrAckReq": false,
+  "ack": false,
+  "fcnt": 31717,
+  "port": 85,
+
+  "modulation": "LORA",
+  "bandwidth": 125,
+  "spreadFactor": 7,
+  "bitrate": 0,
+  "codeRate": "4/5",
+  "snr": 13.8,
+  "rssi": -47,
+  "power": null,
+
+  "payload_b64": "AXVhA2f7AARodA==",
+  "payload_hex": "0175610367fb00046874",
+
+  "temperature": 25.1,
+  "humidity": 58,
+  "battery": 97,
+
+  "payload": {
+    "temperature": 25.1,
+    "humidity": 58,
+    "battery": 97
+  }
 }

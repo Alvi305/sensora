@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.lang.Long.getLong;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -60,8 +62,10 @@ public class SensorReadingMqttSubscriber {
         SensorReading reading = new SensorReading();
         reading.setTenantId(msg.getTenantId());
 
+// 1) Extract identifiers from KV (existing behavior)
         reading.setDevEui(firstNonNull(
                 kv.get("device eui"),
+                kv.get("device eui group name"),
                 kv.get("device eui/group name"),
                 kv.get("deveui"),
                 kv.get("dev eui"),
@@ -71,18 +75,21 @@ public class SensorReadingMqttSubscriber {
         reading.setGwEui(firstNonNull(
                 kv.get("gweui"),
                 kv.get("gw eui"),
-                kv.get("gateway eui")
+                kv.get("gateway eui"),
+                kv.get("gw_eui")
         ));
 
         reading.setAppEui(firstNonNull(
                 kv.get("appeui"),
-                kv.get("app eui")
+                kv.get("app eui"),
+                kv.get("app_eui")
         ));
 
         reading.setDevAddr(firstNonNull(
-                kv.get("dev addr/multicast addr"),
+                kv.get("dev addr multicast addr"),
                 kv.get("dev addr"),
-                kv.get("multicast addr")
+                kv.get("multicast addr"),
+                kv.get("dev_addr")
         ));
 
         reading.setFcnt(parseLong(firstNonNull(
@@ -90,16 +97,74 @@ public class SensorReadingMqttSubscriber {
                 kv.get("f cnt")
         )));
 
+        // 2) Telemetry from top-level JSON (existing)
         reading.setTemperature(getDouble(node, "temperature"));
         reading.setHumidity(getDouble(node, "humidity"));
         reading.setBattery(getDouble(node, "battery"));
 
+
+        // 3) Extract identifiers and fields from JSON aliases (snake_case + camelCase)
+        if (node != null) {
+            if (isBlank(reading.getDevEui())) {
+                reading.setDevEui(firstNonNull(
+                        asText(node, "dev_eui"),
+                        asText(node, "deveui"),
+                        asText(node, "devEui"),
+                        asText(node, "deviceEui")
+                ));
+            }
+            if (isBlank(reading.getGwEui())) {
+                reading.setGwEui(firstNonNull(
+                        asText(node, "gw_eui"),
+                        asText(node, "gweui"),
+                        asText(node, "gwEui"),
+                        asText(node, "gatewayEui")
+                ));
+            }
+            if (isBlank(reading.getAppEui())) {
+                reading.setAppEui(firstNonNull(
+                        asText(node, "app_eui"),
+                        asText(node, "appeui"),
+                        asText(node, "appEui")
+                ));
+            }
+            if (isBlank(reading.getDevAddr())) {
+                reading.setDevAddr(firstNonNull(
+                        asText(node, "dev_addr"),
+                        asText(node, "devAddr")
+                ));
+            }
+
+//            if (reading.getFcnt() == null) {
+//                Long fcntFromJson = firstNonNull(
+//                        getLong(node, "fcnt"),
+//                        getLong(node, "FCnt")
+//                );
+//                reading.setFcnt(fcntFromJson);
+//            }
+
+            // If telemetry may be nested under "payload", merge it in
+            if (node.has("payload")) {
+                JsonNode p = node.get("payload");
+                if (reading.getTemperature() == null) reading.setTemperature(getDouble(p, "temperature"));
+                if (reading.getHumidity() == null) reading.setHumidity(getDouble(p, "humidity"));
+                if (reading.getBattery() == null) reading.setBattery(getDouble(p, "battery"));
+            }
+        }
+
+        // 4) Normalize EUIs (uppercase, strip separators) but null-safe
+        reading.setDevEui(stdEui(reading.getDevEui()));
+        reading.setGwEui(stdEui(reading.getGwEui()));
+        reading.setAppEui(stdEui(reading.getAppEui()));
+
+        // 5) Validate required fields
         if (isBlank(reading.getTenantId()) || isBlank(reading.getDevEui())) {
             log.warn("Missing tenantId/devEui; skipping persist. tenantId={} devEui={} topic={}",
                     reading.getTenantId(), reading.getDevEui(), msg.getFullTopicName());
             return;
         }
 
+        // 6) Persist
         try {
             repository.save(reading);
             log.debug("Saved SensorReading tenant={} devEUI={} fcnt={} temp={} hum={} batt={}",
@@ -112,7 +177,8 @@ public class SensorReadingMqttSubscriber {
     }
 
     // Helper Methods
-    private Map<String, String> parseKeyValues(String text) {
+    private Map<String, String> parseKeyValues(String text)
+    {
         Map<String, String> map = new LinkedHashMap<>();
         for (String rawLine : text.split("\\r?\\n")) {
             String line = rawLine == null ? "" : rawLine.trim();
@@ -170,19 +236,20 @@ public class SensorReadingMqttSubscriber {
         return map;
     }
 
-    private String normalizeKey(String k) {
+    private String normalizeKey(String k)
+    {
         if (k == null) return null;
-        String key = k.trim()
+        return k.trim()
                 .replace("：", ":")
                 .replace('/', ' ')
                 .replace('_', ' ')
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("\\s+", " ")
                 .trim();
-        return key;
     }
 
-    private JsonNode extractJson(String text) {
+    private JsonNode extractJson(String text)
+    {
         try {
             if (text.startsWith("{") && text.endsWith("}")) {
                 return mapper.readTree(text);
@@ -205,17 +272,20 @@ public class SensorReadingMqttSubscriber {
         return null;
     }
 
-    private static String firstNonNull(String... values) {
+    private static String firstNonNull(String... values)
+    {
         if (values == null) return null;
         for (String v : values) if (v != null && !v.isBlank()) return v.trim();
         return null;
     }
 
-    private static boolean isBlank(String s) {
+    private static boolean isBlank(String s)
+    {
         return s == null || s.isBlank();
     }
 
-    private static Long parseLong(String s) {
+    private static Long parseLong(String s)
+    {
         if (s == null || s.isBlank()) return null;
         try { return Long.parseLong(s.trim()); } catch (Exception e) { return null; }
     }
@@ -228,5 +298,34 @@ public class SensorReadingMqttSubscriber {
             try { return Double.parseDouble(v.asText()); } catch (Exception ignore) {}
         }
         return null;
+    }
+
+    private static Long getLong(JsonNode n, String field)
+    {
+        if (n == null || !n.has(field)) return null;
+        JsonNode v = n.get(field);
+        if (v.isIntegralNumber()) return v.asLong();
+        if (v.isTextual()) {
+            try { return Long.parseLong(v.asText()); } catch (Exception ignore) {}
+        }
+        return null;
+    }
+
+    private static String asText(JsonNode n, String field)
+    {
+        if (n == null || !n.has(field)) return null;
+        JsonNode v = n.get(field);
+        if (v == null || v.isNull()) return null;
+        return v.asText(null);
+    }
+
+    private static String stdEui(String eui) {
+        if (eui == null || eui.isBlank()) return null;
+        String cleaned = eui.replaceAll("[^0-9a-fA-F]", "");
+        // Accept 12–16 hex chars; if not, just uppercase cleaned for visibility
+        if (cleaned.matches("^[0-9a-fA-F]{12,16}$")) {
+            return cleaned.toUpperCase(Locale.ROOT);
+        }
+        return cleaned.toUpperCase(Locale.ROOT);
     }
 }

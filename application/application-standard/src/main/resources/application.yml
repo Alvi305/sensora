@@ -198,7 +198,7 @@ mqtt:
     moquette:
       port: ${mqtt.broker.mqtt_port:1883}
       host: 0.0.0.0
-      allow_anonymous: false
+      allow_anonymous: true
       persistence_enabled: false
       websocket_port: ${mqtt.broker.ws_port:8083}
       websocket_path: ${mqtt.broker.ws_path:/mqtt}

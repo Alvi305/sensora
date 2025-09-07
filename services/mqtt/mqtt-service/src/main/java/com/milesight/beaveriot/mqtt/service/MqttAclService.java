@@ -93,7 +93,11 @@ public class MqttAclService implements MqttAuthProvider {
 
     @Override
     public boolean canDo(MqttAction action, String topic, String clientId, String username) {
-        val tenantId = getTenantIdFromUsername(username);
+        if (username == null) {
+            return topic != null && topic.startsWith(DEFAULT_TOPIC_PREFIX + "/public/");
+        }
+
+        final String tenantId = getTenantIdFromUsername(username);
         if (tenantId == null) {
             return true;
         }

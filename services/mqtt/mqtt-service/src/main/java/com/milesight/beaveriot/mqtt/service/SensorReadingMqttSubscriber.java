@@ -37,7 +37,7 @@ public class SensorReadingMqttSubscriber {
 
     private static final String[] DEV_EUI_ALIASES =
     {
-            "device eui", "device eui/group name", "dev eui", "dev_eui", "devEui", "deviceEui", "Device EUI/Group Name"
+            "device eui", "device eui/group name", "dev eui", "dev_eui", "devEui", "deviceEui", "Device EUI/Group Name", "identifier"
     };
 
     private static final String[] GW_EUI_ALIASES =
@@ -75,6 +75,10 @@ public class SensorReadingMqttSubscriber {
 
     private void processMessage(MqttMessage msg) {
         final String payload = new String(msg.getPayload(), StandardCharsets.UTF_8).trim();
+
+        log.warn("MQTT incoming: topic={} tenant={} username={} msgpayload={} payload={} ",
+                msg.getFullTopicName(), msg.getTenantId(), msg.getUsername(), msg.getPayload(),
+                abbreviate(payload, 4000));
 
         Map<String, String> kvMap = parseKvLines(payload);
         JsonNode root = parseJson(payload);
@@ -118,6 +122,9 @@ public class SensorReadingMqttSubscriber {
                 }
             }
         }
+
+        log.debug("KV parsed entries: {}", map);
+
         return map;
     }
 
@@ -162,6 +169,8 @@ public class SensorReadingMqttSubscriber {
 
         String fcntStr = firstNonBlank(getFromMap(kv, FCNT_ALIASES));
         reading.setFcnt(parseLongSafe(fcntStr));
+
+        log.debug("in method populateFromKv: {}", formatReading(reading));
     }
 
     // Populate identifiers and counters from JSON
@@ -194,6 +203,8 @@ public class SensorReadingMqttSubscriber {
             );
             reading.setFcnt(fcnt);
         }
+
+        log.debug("in method populateFromJson: {}", formatReading(reading));
     }
 
     // Populate telemetry values
@@ -222,6 +233,8 @@ public class SensorReadingMqttSubscriber {
                 reading.setBattery(getDouble(payload, "battery"));
             }
         }
+
+        log.debug("in method populateTelemetry: {}", formatReading(reading));
     }
 
     // Normalize identifiers
@@ -229,6 +242,8 @@ public class SensorReadingMqttSubscriber {
         reading.setDevEui(normalizeEui(reading.getDevEui()));
         reading.setGwEui(normalizeEui(reading.getGwEui()));
         reading.setAppEui(normalizeEui(reading.getAppEui()));
+
+        log.debug("in method normalizeIdentifiers: {}", formatReading(reading));
     }
 
     // Persist with validation
@@ -352,5 +367,27 @@ public class SensorReadingMqttSubscriber {
         if (isBlank(eui)) return null;
         String hex = eui.replaceAll("[^0-9a-fA-F]", "");
         return hex.toUpperCase(Locale.ROOT);
+    }
+
+
+    private static String abbreviate(String s, int max) {
+        if (s == null) return null;
+        if (s.length() <= max) return s;
+        return s.substring(0, Math.max(0, max)) + "...(" + s.length() + " chars)";
+    }
+
+    // Produces a readable log string for SensorReading without relying on toString()
+    private static String formatReading(SensorReading r) {
+        if (r == null) return "null";
+        return "SensorReading{tenantId=" + r.getTenantId()
+                + ", devEui=" + r.getDevEui()
+                + ", gwEui=" + r.getGwEui()
+                + ", appEui=" + r.getAppEui()
+                + ", devAddr=" + r.getDevAddr()
+                + ", fcnt=" + r.getFcnt()
+                + ", temperature=" + r.getTemperature()
+                + ", humidity=" + r.getHumidity()
+                + ", battery=" + r.getBattery()
+                + "}";
     }
 }

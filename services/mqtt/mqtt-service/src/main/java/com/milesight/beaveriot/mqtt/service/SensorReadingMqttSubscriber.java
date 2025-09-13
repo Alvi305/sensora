@@ -33,29 +33,30 @@ public class SensorReadingMqttSubscriber {
     private static final Pattern KV_COLON = Pattern.compile("^\\s*([^:]+?)\\s*[:：]\\s*(.+)\\s*$");
     private static final Pattern JSON_BLOCK_PATTERN = Pattern.compile("\\{[\\s\\S]*}$");
 
-    // Alias sets for resilient parsing
+    // Extract GwEUI from topic
+    private static final Pattern TOPIC_GWEUI = Pattern.compile(".*/milesight-gateway/([0-9a-fA-F:\\-]+?)/uplink$");
 
+    // Alias sets for resilient parsing
     private static final String[] DEV_EUI_ALIASES =
     {
-            "device eui", "device eui/group name", "dev eui", "dev_eui", "devEui", "deviceEui", "Device EUI/Group Name", "identifier"
+            "device eui", "device eui/group name", "devEUI", "dev_eui", "devEui", "deviceEui", "Device EUI/Group Name", "identifier"
     };
 
     private static final String[] GW_EUI_ALIASES =
     {
-            "gw eui", "gateway eui", "gw_eui", "gwEui", "GwEUI", "gatewayEui"
+            "gw eui", "gateway eui", "gw_eui", "gwEui", "GwEUI", "gatewayEui", "mac"
     };
 
-    private static final String[] APP_EUI_ALIASES =
-    {
-            "app eui", "app_eui", "appEui", "AppEUI"
+    private static final String[] APP_NAME_ALIASES = {
+            "applicationName", "appName"
     };
 
-    private static final String[] DEV_ADDR_ALIASES =
-    {
-            "dev addr", "multicast addr", "dev_addr", "Dev Addr/Multicast Addr"
+    private static final String[] DEVICE_NAME_ALIASES = {
+            "deviceName", "device_name"
     };
 
-    private static final String[] FCNT_ALIASES = { "fcnt", "FCnt" };
+
+    private static final String[] FCNT_ALIASES = { "fCnt" };
 
     @PostConstruct
     public void subscribeAll() {
@@ -80,53 +81,62 @@ public class SensorReadingMqttSubscriber {
                 msg.getFullTopicName(), msg.getTenantId(), msg.getUsername(), msg.getPayload(),
                 abbreviate(payload, 4000));
 
-        Map<String, String> kvMap = parseKvLines(payload);
-        JsonNode root = parseJson(payload);
+//        Map<String, String> kvMap = parseKvLines(payload);
+          JsonNode node = parseJson(payload);
 
         SensorReading reading = new SensorReading();
         reading.setTenantId(msg.getTenantId());
 
-        populateFromKv(reading, kvMap);
-        populateFromJson(reading, root);
-        populateTelemetry(reading, root);
+        // extract GwEUI from rxinfo.mac or from topic path
+        if (isBlank(reading.getGwEui())) {
+            reading.setGwEui(extractGatewayEuiFromRxInfo(node));
+        }
+
+        if (isBlank(reading.getGwEui())) {
+            reading.setGwEui(extractGatewayEuiFromTopic(msg.getFullTopicName()));
+        }
+
+//        populateFromKv(reading, kvMap);
+        populateFromJson(reading, node);
+        populateTelemetry(reading, node);
         normalizeIdentifiers(reading);
 
         validateAndPersist(reading, msg);
     }
 
     // Parsing: KV section for .text format data
-    private Map<String, String> parseKvLines(String text) {
-        Map<String, String> map = new LinkedHashMap<>();
-        String[] lines = text.split("\\r?\\n");
-
-        for (String raw : lines) {
-            String line = raw == null ? "" : raw.trim();
-            if (line.isEmpty()) continue;
-            if (line.startsWith("{")) break; // stop at JSON block
-
-            Matcher m = KV_COLON.matcher(line);
-            if (m.matches()) {
-                map.put(normalizeKey(m.group(1)), m.group(2).trim());
-                continue;
-            }
-
-            String[] knownKeys = {
-                    "Dev Addr/Multicast Addr", "Dev Addr", "Multicast Addr",
-                    "GwEUI", "AppEUI", "Device EUI/Group Name", "Device EUI",
-                    "Fcnt", "FCnt", "Port"
-            };
-            for (String k : knownKeys) {
-                if (startsWithIgnoreCase(line, k)) {
-                    map.put(normalizeKey(k), line.substring(k.length()).trim());
-                    break;
-                }
-            }
-        }
-
-        log.debug("KV parsed entries: {}", map);
-
-        return map;
-    }
+//    private Map<String, String> parseKvLines(String text) {
+//        Map<String, String> map = new LinkedHashMap<>();
+//        String[] lines = text.split("\\r?\\n");
+//
+//        for (String raw : lines) {
+//            String line = raw == null ? "" : raw.trim();
+//            if (line.isEmpty()) continue;
+//            if (line.startsWith("{")) break; // stop at JSON block
+//
+//            Matcher m = KV_COLON.matcher(line);
+//            if (m.matches()) {
+//                map.put(normalizeKey(m.group(1)), m.group(2).trim());
+//                continue;
+//            }
+//
+//            String[] knownKeys = {
+//                    "Dev Addr/Multicast Addr", "Dev Addr", "Multicast Addr",
+//                    "GwEUI", "AppEUI", "Device EUI/Group Name", "Device EUI","devEUI",
+//                    "Fcnt", "FCnt", "Port", "deviceName", "applicationName"
+//            };
+//            for (String k : knownKeys) {
+//                if (startsWithIgnoreCase(line, k)) {
+//                    map.put(normalizeKey(k), line.substring(k.length()).trim());
+//                    break;
+//                }
+//            }
+//        }
+//
+//    //log.warn("KV parsed entries: {}", map);
+//
+//        return map;
+//    }
 
     // Parsing: JSON section
     private JsonNode parseJson(String text) {
@@ -160,17 +170,18 @@ public class SensorReadingMqttSubscriber {
         reading.setGwEui(firstNonBlank(
                 getFromMap(kv, GW_EUI_ALIASES)
         ));
-        reading.setAppEui(firstNonBlank(
-                getFromMap(kv, APP_EUI_ALIASES)
-        ));
-        reading.setDevAddr(firstNonBlank(
-                getFromMap(kv, DEV_ADDR_ALIASES)
-        ));
+
+        if (isBlank(reading.getDeviceName())) {
+            reading.setDeviceName(firstNonBlank(getFromMap(kv, DEVICE_NAME_ALIASES)));
+        }
+        if (isBlank(reading.getAppName())) {
+            reading.setAppName(firstNonBlank(getFromMap(kv, APP_NAME_ALIASES)));
+        }
 
         String fcntStr = firstNonBlank(getFromMap(kv, FCNT_ALIASES));
         reading.setFcnt(parseLongSafe(fcntStr));
 
-        log.debug("in method populateFromKv: {}", formatReading(reading));
+//        log.warn("in method populateFromKv: {}", formatReading(reading));
     }
 
     // Populate identifiers and counters from JSON
@@ -187,16 +198,7 @@ public class SensorReadingMqttSubscriber {
                 getFirstText(root, GW_EUI_ALIASES)
             ));
         }
-        if (isBlank(reading.getAppEui())) {
-            reading.setAppEui(firstNonBlank(
-                getFirstText(root, APP_EUI_ALIASES)
-            ));
-        }
-        if (isBlank(reading.getDevAddr())) {
-            reading.setDevAddr(firstNonBlank(
-                getFirstText(root, DEV_ADDR_ALIASES)
-            ));
-        }
+
         if (reading.getFcnt() == null) {
             Long fcnt = firstNonNull(
                 getFirstLong(root, FCNT_ALIASES)
@@ -204,12 +206,22 @@ public class SensorReadingMqttSubscriber {
             reading.setFcnt(fcnt);
         }
 
-        log.debug("in method populateFromJson: {}", formatReading(reading));
+        if (isBlank(reading.getDeviceName())) {
+            reading.setDeviceName(firstNonBlank(getFirstText(root, DEVICE_NAME_ALIASES)));
+        }
+        if (isBlank(reading.getAppName())) {
+            reading.setAppName(firstNonBlank(getFirstText(root, APP_NAME_ALIASES)));
+        }
+
+//        log.warn("in method populateFromJson: {}", formatReading(reading));
     }
 
     // Populate telemetry values
     private void populateTelemetry(SensorReading reading, JsonNode root) {
-        if (root == null) return;
+        if (root == null) {
+            log.warn("temperature, humidity payload MISSING");
+            return;
+        }
 
         if (reading.getTemperature() == null) {
             reading.setTemperature(getDouble(root, "temperature"));
@@ -234,25 +246,27 @@ public class SensorReadingMqttSubscriber {
             }
         }
 
-        log.debug("in method populateTelemetry: {}", formatReading(reading));
+//        log.warn("in method populateTelemetry: {}", formatReading(reading));
     }
 
     // Normalize identifiers
     private void normalizeIdentifiers(SensorReading reading) {
         reading.setDevEui(normalizeEui(reading.getDevEui()));
         reading.setGwEui(normalizeEui(reading.getGwEui()));
-        reading.setAppEui(normalizeEui(reading.getAppEui()));
-
-        log.debug("in method normalizeIdentifiers: {}", formatReading(reading));
     }
 
     // Persist with validation
     private void validateAndPersist(SensorReading reading, MqttMessage msg) {
-        if (isBlank(reading.getTenantId()) || isBlank(reading.getDevEui())) {
-            log.warn("Missing tenantId/devEui; skipping persist. tenantId={} devEui={} topic={}",
-                    reading.getTenantId(), reading.getDevEui(), msg.getFullTopicName());
+        if (isBlank(reading.getTenantId()) || isBlank(reading.getDevEui()) || reading.getTemperature() == null || reading.getHumidity() == null) {
+            log.warn("Missing tenantId/devEui/temperature/humidity; skipping persist. tenantId={} devEui={} topic={} temp={} humidity={}",
+                    reading.getTenantId(), reading.getDevEui(), msg.getFullTopicName(), reading.getTemperature(), reading.getHumidity());
             return;
         }
+
+        if (isBlank(reading.getDeviceName())) {
+            reading.setDeviceName("unknown");
+        }
+
         try {
             repository.save(reading);
             log.debug("Saved SensorReading tenant={} devEUI={} fcnt={} temp={} hum={} batt={}",
@@ -376,14 +390,31 @@ public class SensorReadingMqttSubscriber {
         return s.substring(0, Math.max(0, max)) + "...(" + s.length() + " chars)";
     }
 
-    // Produces a readable log string for SensorReading without relying on toString()
+    private static String extractGatewayEuiFromRxInfo(JsonNode root) {
+        if (root == null || !root.has("rxInfo")) return null;
+        JsonNode arr = root.get("rxInfo");
+        if (!arr.isArray() || arr.size() == 0) return null;
+        JsonNode first = arr.get(0);
+        return asText(first, "mac");
+    }
+
+    private static String extractGatewayEuiFromTopic(String topic) {
+        if (topic == null) return null;
+        Matcher m = TOPIC_GWEUI.matcher(topic);
+        if (m.matches()) {
+            return m.group(1);
+        }
+        return null;
+    }
+
+    // Logging
     private static String formatReading(SensorReading r) {
         if (r == null) return "null";
         return "SensorReading{tenantId=" + r.getTenantId()
                 + ", devEui=" + r.getDevEui()
                 + ", gwEui=" + r.getGwEui()
-                + ", appEui=" + r.getAppEui()
-                + ", devAddr=" + r.getDevAddr()
+                + ", deviceName=" + r.getDeviceName()
+                + ", appName=" + r.getAppName()
                 + ", fcnt=" + r.getFcnt()
                 + ", temperature=" + r.getTemperature()
                 + ", humidity=" + r.getHumidity()

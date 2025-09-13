@@ -20,14 +20,15 @@ public class SensorReading {
     @Column(name = "dev_eui", nullable = false)
     private String devEui;
 
+    @Column(name = "device_name")
+    private String deviceName;
+
+
     @Column(name = "gw_eui")
     private String gwEui;
 
-    @Column(name = "app_eui")
-    private String appEui;
-
-    @Column(name = "dev_addr")
-    private String devAddr;
+    @Column(name = "app_name")
+    private String appName;
 
     @Column(name = "fcnt")
     private Long fcnt;

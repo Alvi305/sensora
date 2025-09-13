@@ -15,6 +15,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -81,8 +82,7 @@ public class SensorReadingMqttSubscriber {
                 msg.getFullTopicName(), msg.getTenantId(), msg.getUsername(), msg.getPayload(),
                 abbreviate(payload, 4000));
 
-//        Map<String, String> kvMap = parseKvLines(payload);
-          JsonNode node = parseJson(payload);
+        JsonNode node = parseJson(payload);
 
         SensorReading reading = new SensorReading();
         reading.setTenantId(msg.getTenantId());
@@ -96,47 +96,16 @@ public class SensorReadingMqttSubscriber {
             reading.setGwEui(extractGatewayEuiFromTopic(msg.getFullTopicName()));
         }
 
-//        populateFromKv(reading, kvMap);
         populateFromJson(reading, node);
+
         populateTelemetry(reading, node);
+
+        decodeDataFieldIntoTelemetry(reading, node);
+
         normalizeIdentifiers(reading);
 
         validateAndPersist(reading, msg);
     }
-
-    // Parsing: KV section for .text format data
-//    private Map<String, String> parseKvLines(String text) {
-//        Map<String, String> map = new LinkedHashMap<>();
-//        String[] lines = text.split("\\r?\\n");
-//
-//        for (String raw : lines) {
-//            String line = raw == null ? "" : raw.trim();
-//            if (line.isEmpty()) continue;
-//            if (line.startsWith("{")) break; // stop at JSON block
-//
-//            Matcher m = KV_COLON.matcher(line);
-//            if (m.matches()) {
-//                map.put(normalizeKey(m.group(1)), m.group(2).trim());
-//                continue;
-//            }
-//
-//            String[] knownKeys = {
-//                    "Dev Addr/Multicast Addr", "Dev Addr", "Multicast Addr",
-//                    "GwEUI", "AppEUI", "Device EUI/Group Name", "Device EUI","devEUI",
-//                    "Fcnt", "FCnt", "Port", "deviceName", "applicationName"
-//            };
-//            for (String k : knownKeys) {
-//                if (startsWithIgnoreCase(line, k)) {
-//                    map.put(normalizeKey(k), line.substring(k.length()).trim());
-//                    break;
-//                }
-//            }
-//        }
-//
-//    //log.warn("KV parsed entries: {}", map);
-//
-//        return map;
-//    }
 
     // Parsing: JSON section
     private JsonNode parseJson(String text) {
@@ -158,30 +127,6 @@ public class SensorReadingMqttSubscriber {
             }
         }
         return null;
-    }
-
-    // Populate identifiers and counters from KV
-    private void populateFromKv(SensorReading reading, Map<String, String> kv) {
-        if (kv == null || kv.isEmpty()) return;
-
-        reading.setDevEui(firstNonBlank(
-                getFromMap(kv, DEV_EUI_ALIASES)
-        ));
-        reading.setGwEui(firstNonBlank(
-                getFromMap(kv, GW_EUI_ALIASES)
-        ));
-
-        if (isBlank(reading.getDeviceName())) {
-            reading.setDeviceName(firstNonBlank(getFromMap(kv, DEVICE_NAME_ALIASES)));
-        }
-        if (isBlank(reading.getAppName())) {
-            reading.setAppName(firstNonBlank(getFromMap(kv, APP_NAME_ALIASES)));
-        }
-
-        String fcntStr = firstNonBlank(getFromMap(kv, FCNT_ALIASES));
-        reading.setFcnt(parseLongSafe(fcntStr));
-
-//        log.warn("in method populateFromKv: {}", formatReading(reading));
     }
 
     // Populate identifiers and counters from JSON
@@ -213,7 +158,6 @@ public class SensorReadingMqttSubscriber {
             reading.setAppName(firstNonBlank(getFirstText(root, APP_NAME_ALIASES)));
         }
 
-//        log.warn("in method populateFromJson: {}", formatReading(reading));
     }
 
     // Populate telemetry values
@@ -246,7 +190,89 @@ public class SensorReadingMqttSubscriber {
             }
         }
 
-//        log.warn("in method populateTelemetry: {}", formatReading(reading));
+    }
+
+    // Decode data (base64)
+    private void decodeDataFieldIntoTelemetry(SensorReading reading, JsonNode root) {
+        if (root == null || !root.has("data")) return;
+
+        String dataB64 = asText(root, "data");
+        if (isBlank(dataB64)) return;
+
+        byte[] bytes;
+
+        try {
+            bytes = Base64.getDecoder().decode(dataB64);
+        } catch (IllegalArgumentException e) {
+            log.warn("Failed to base64-decode data: {}", dataB64, e);
+            return;
+        }
+
+        DecodedTelemetry dt = parseMilesightTlv(bytes);
+
+        // Only set if still null
+        if (reading.getBattery() == null && dt.battery != null) {
+            reading.setBattery(dt.battery);
+        }
+        if (reading.getTemperature() == null && dt.temperature != null) {
+            reading.setTemperature(dt.temperature);
+        }
+        if (reading.getHumidity() == null && dt.humidity != null) {
+            reading.setHumidity(dt.humidity);
+        }
+
+        log.debug("Decoded data -> temp={}C hum={}%, batt={}%", dt.temperature, dt.humidity, dt.battery);
+    }
+
+    // TLV parser
+    private static DecodedTelemetry parseMilesightTlv(byte[] bytes) {
+        DecodedTelemetry out = new DecodedTelemetry();
+        int i = 0;
+        while (i + 1 < bytes.length) {
+            int channelId = bytes[i] & 0xFF;
+            int channelType = bytes[i + 1] & 0xFF;
+            i += 2;
+
+            // Battery: 0x01 0x75 -> uint8 (percentage)
+            if (channelId == 0x01 && channelType == 0x75) {
+                if (i < bytes.length) {
+                    out.battery = (double) (bytes[i] & 0xFF);
+                    i += 1;
+                } else break;
+            }
+            // Temperature: 0x03 0x67 -> int16 LE, divide by 10
+            else if (channelId == 0x03 && channelType == 0x67) {
+                if (i + 1 < bytes.length) {
+                    int lo = bytes[i] & 0xFF;
+                    int hi = bytes[i + 1];
+                    int raw = (hi << 8) | lo;
+                    // sign-extend to 16 bits
+                    short sraw = (short) raw;
+                    out.temperature = sraw / 10.0;
+                    i += 2;
+                } else break;
+            }
+            // Humidity: 0x04 0x68 -> uint8 / 2
+            else if (channelId == 0x04 && channelType == 0x68) {
+                if (i < bytes.length) {
+                    int h = bytes[i] & 0xFF;
+                    out.humidity = h / 2.0;
+                    i += 1;
+                } else break;
+            }
+            // History: 0x20 0xCE -> 7 bytes per point (timestamp[4], temp[2], hum[1])
+            else if (channelId == 0x20 && channelType == 0xCE) {
+                if (i + 6 < bytes.length) {
+                    //can collect history if needed. For now, skip 7 bytes per record.
+                    i += 7;
+                } else break;
+            }
+            // Unknown or unsupported -> stop parsing
+            else {
+                break;
+            }
+        }
+        return out;
     }
 
     // Normalize identifiers
@@ -281,30 +307,6 @@ public class SensorReadingMqttSubscriber {
     // -------------------------
     // Helpers
     // -------------------------
-
-    private static String normalizeKey(String key) {
-        if (key == null) return null;
-        return key.trim()
-                .replace("：", ":")
-                .replace('/', ' ')
-                .replace('_', ' ')
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ")
-                .trim();
-    }
-
-    private static boolean startsWithIgnoreCase(String text, String prefix) {
-        return text.regionMatches(true, 0, prefix, 0, prefix.length());
-    }
-
-    private static String[] getFromMap(Map<String, String> kv, String... aliases) {
-        String[] out = new String[aliases.length];
-        for (int i = 0; i < aliases.length; i++) {
-            out[i] = kv.get(normalizeKey(aliases[i]));
-        }
-        return out;
-    }
-
     private static String[] getFirstText(JsonNode node, String... aliases) {
         String[] out = new String[aliases.length];
         for (int i = 0; i < aliases.length; i++) {
@@ -406,6 +408,14 @@ public class SensorReadingMqttSubscriber {
         }
         return null;
     }
+
+    //DTO for decoded telemetry
+    private static class DecodedTelemetry {
+        Double battery;
+        Double temperature;
+        Double humidity;
+    }
+
 
     // Logging
     private static String formatReading(SensorReading r) {

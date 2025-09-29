@@ -48,6 +48,15 @@ public class EmbeddedMqttBrokerBridge extends AbstractMqttBrokerBridge {
 
     @Override
     public void open() throws IOException {
+        // confirm normal port is disabled
+        if (!"disabled".equalsIgnoreCase(config.getProperty("port","disabled"))){
+            config.setProperty("port","disabled");
+        }
+
+        final String ksType = config.getProperty("key_store_type", "PKCS12");
+        System.setProperty("javax.net.ssl.keyStoreType", ksType);
+        System.setProperty("javax.net.ssl.trustStoreType", ksType);
+
         mqttBroker.startServer(config, List.of(interceptHandler), null, authenticator, authorizatorPolicy);
     }
 

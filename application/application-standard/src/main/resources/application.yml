@@ -192,19 +192,30 @@ oauth2:
 
 mqtt:
   broker:
-    mqtt_port: 1883
+    mqtt_port: 8883
     ws_path: /mqtt
     ws_port: 8083
     moquette:
       port: ${mqtt.broker.mqtt_port:1883}
       host: 0.0.0.0
-      allow_anonymous: true
+      allow_anonymous: false
       persistence_enabled: false
       websocket_port: ${mqtt.broker.ws_port:8083}
       websocket_path: ${mqtt.broker.ws_path:/mqtt}
       netty:
         mqtt:
           message_size: 1048576
+    tls:
+      enabled: true
+      port: 1883
+      keyStorePath : "C:/sensora/sensora_certs/java/broker-keystore.p12"
+      keyStorePassword : "changeit"
+      keystoreType: "PKCS12"
+      clientAuth: true
+      truststorePath: "C:/sensora/sensora_certs/java/broker-truststore.p12"
+      truststorePassword: "changeit"
+      truststoreType: "JKS"
+
 
 resource:
   storage: ${RESOURCE_STORAGE:db}

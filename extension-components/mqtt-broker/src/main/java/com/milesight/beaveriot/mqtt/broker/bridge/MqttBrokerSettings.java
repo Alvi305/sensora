@@ -36,6 +36,9 @@ public class MqttBrokerSettings {
     @Valid
     private Emqx emqx;
 
+    @Valid
+    private TLS tls;
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -69,4 +72,21 @@ public class MqttBrokerSettings {
         private String restApiPassword;
     }
 
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TLS {
+        private Boolean enabled;
+
+        private String keyStorePath;
+        private String keyStorePassword;
+        private String keyStoreType;
+
+        // Optional mTLS
+        private Boolean clientAuth; // require client cert if true
+        private String trustedStorePath;
+        private String trustedStorePassword;
+        private String trustStoreType;
+    }
 }

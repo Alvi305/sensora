@@ -207,14 +207,14 @@ mqtt:
           message_size: 1048576
     tls:
       enabled: true
-      port: 1883
       keyStorePath : "C:/sensora/sensora_certs/java/broker-keystore.p12"
       keyStorePassword : "changeit"
       keystoreType: "PKCS12"
+
       clientAuth: true
       truststorePath: "C:/sensora/sensora_certs/java/broker-truststore.p12"
       truststorePassword: "changeit"
-      truststoreType: "JKS"
+      trustStoreType: "PKCS12"
 
 
 resource:

@@ -53,6 +53,13 @@ public class EmbeddedMqttBrokerBridgeConfiguration {
         // mTLS for tighter security
         if (Boolean.TRUE.equals(tls.getClientAuth())) {
             properties.setProperty("need_client_auth", "true");
+            if (tls.getTrustStorePath() == null || tls.getTrustStorePath().isBlank() || tls.getTrustStorePassword() == null || tls.getTrustStorePassword().isBlank()) {
+                throw new IllegalStateException("mTLS enabled but trust store missing: set mqtt.broker.tls.trustedStorePath and trustedStorePassword.");
+            }
+            properties.setProperty("trust_store_path", tls.getTrustStorePath());
+            properties.setProperty("trust_store_password", tls.getTrustStorePassword());
+            properties.setProperty("trust_store_type",
+                    (tls.getTrustStoreType() == null || tls.getTrustStoreType().isBlank()) ? properties.getProperty("key_store_type","PKCS12") : tls.getTrustStoreType());
         }
 
         // Websockets disabled for TLS-only TCP

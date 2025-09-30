@@ -85,8 +85,8 @@ public class MqttBrokerSettings {
 
         // Optional mTLS
         private Boolean clientAuth; // require client cert if true
-        private String trustedStorePath;
-        private String trustedStorePassword;
+        private String trustStorePath;
+        private String trustStorePassword;
         private String trustStoreType;
     }
 }

@@ -55,15 +55,15 @@ public class EmbeddedMqttBrokerBridge extends AbstractMqttBrokerBridge {
 
         final String ksType = config.getProperty("key_store_type", "PKCS12");
         final String tsType = config.getProperty("trust_store_type", ksType);
-        System.setProperty("javax.net.ssl.keyStoreType", ksType);
-        System.setProperty("javax.net.ssl.trustStoreType", tsType);
+        System.setProperty("Djavax.net.ssl.keyStoreType", ksType);
+        System.setProperty("Djavax.net.ssl.trustStoreType", tsType);
 
         String tsPath = config.getProperty("trust_store_path");
         if (tsPath != null && !tsPath.isBlank()) {
-            System.setProperty("javax.net.ssl.trustStore", tsPath);
+            System.setProperty("Djavax.net.ssl.trustStore", tsPath);
             String tsPass = config.getProperty("trust_store_password", "");
             if (!tsPass.isBlank()) {
-                System.setProperty("javax.net.ssl.trustStorePassword", tsPass);
+                System.setProperty("Djavax.net.ssl.trustStorePassword", tsPass);
             }
         }
 

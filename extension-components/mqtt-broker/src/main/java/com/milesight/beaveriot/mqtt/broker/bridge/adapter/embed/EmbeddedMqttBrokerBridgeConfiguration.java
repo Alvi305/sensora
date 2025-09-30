@@ -32,23 +32,21 @@ public class EmbeddedMqttBrokerBridgeConfiguration {
 
 
         if (mqttBrokerSettings.getTls() == null || !Boolean.TRUE.equals(mqttBrokerSettings.getTls().getEnabled())) {
-            throw new IllegalStateException(
-                    "TLS-only mode requested: set mqtt.broker.tls.enabled=true and configure keystore.");
+            throw new IllegalStateException("TLS-only mode requested: set mqtt.broker.tls.enabled=true and configure keystore.");
         }
 
         val tls = mqttBrokerSettings.getTls();
+
         if (tls.getKeyStorePath() == null || tls.getKeyStorePath().isBlank()
                 || tls.getKeyStorePassword() == null || tls.getKeyStorePassword().isBlank()) {
-            throw new IllegalStateException(
-                    "Missing TLS keystore configuration: mqtt.broker.tls.keystorePath and keystorePassword are required.");
+            throw new IllegalStateException("Missing TLS keystore configuration: mqtt.broker.tls.keystorePath and keystorePassword are required.");
         }
 
         // provide SSL properties to Moquette
         properties.setProperty("jks_path", tls.getKeyStorePath());
         properties.setProperty("key_store_password", tls.getKeyStorePassword());
         properties.setProperty("key_manager_password", tls.getKeyStorePassword());
-        properties.setProperty("key_store_type",
-                (tls.getKeyStoreType() == null || tls.getKeyStoreType().isBlank()) ? "PKCS12" : tls.getKeyStoreType());
+        properties.setProperty("key_store_type", (tls.getKeyStoreType() == null || tls.getKeyStoreType().isBlank()) ? "PKCS12" : tls.getKeyStoreType());
 
         // mTLS for tighter security
         if (Boolean.TRUE.equals(tls.getClientAuth())) {

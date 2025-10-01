@@ -57,7 +57,7 @@ public class EmbeddedMqttBrokerBridgeConfiguration {
             properties.setProperty("trust_store_path", tls.getTrustStorePath());
             properties.setProperty("trust_store_password", tls.getTrustStorePassword());
             properties.setProperty("trust_store_type",
-                    (tls.getTrustStoreType() == null || tls.getTrustStoreType().isBlank()) ? properties.getProperty("key_store_type","PKCS12") : tls.getTrustStoreType());
+                    (tls.getTrustStoreType() == null || tls.getTrustStoreType().isBlank()) ? properties.getProperty("trust_store_type","PKCS12") : tls.getTrustStoreType());
         }
 
         // Websockets disabled for TLS-only TCP

@@ -211,7 +211,7 @@ mqtt:
       keyStorePassword : "changeit"
       keystoreType: "JKS"
 
-      clientAuth: true
+      clientAuth: false
       truststorePath: "C:/sensora/sensora_certs/java/broker-truststore.jks"
       truststorePassword: "changeit"
       trustStoreType: "JKS"

@@ -31,7 +31,6 @@ public class SensorReadingMqttSubscriber {
     private final SensorReadingsRepository repository;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    private static final Pattern KV_COLON = Pattern.compile("^\\s*([^:]+?)\\s*[:：]\\s*(.+)\\s*$");
     private static final Pattern JSON_BLOCK_PATTERN = Pattern.compile("\\{[\\s\\S]*}$");
 
     // Extract GwEUI from topic

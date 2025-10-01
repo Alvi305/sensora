@@ -53,19 +53,29 @@ public class EmbeddedMqttBrokerBridge extends AbstractMqttBrokerBridge {
             config.setProperty("port","disabled");
         }
 
-        final String ksType = config.getProperty("key_store_type", "PKCS12");
-        final String tsType = config.getProperty("trust_store_type", ksType);
-        System.setProperty("Djavax.net.ssl.keyStoreType", ksType);
-        System.setProperty("Djavax.net.ssl.trustStoreType", tsType);
+        final String ksType = config.getProperty("key_store_type", "JKS");
+        System.setProperty("javax.net.ssl.keyStoreType", ksType);
 
-        String tsPath = config.getProperty("trust_store_path");
-        if (tsPath != null && !tsPath.isBlank()) {
-            System.setProperty("Djavax.net.ssl.trustStore", tsPath);
-            String tsPass = config.getProperty("trust_store_password", "");
-            if (!tsPass.isBlank()) {
-                System.setProperty("Djavax.net.ssl.trustStorePassword", tsPass);
+        String ksPath = config.getProperty("jks_path");
+        if (ksPath != null && !ksPath.isBlank()) {
+            System.setProperty("javax.net.ssl.keyStore", ksPath);
+            String ksPass = config.getProperty("key_store_password", "");
+            if (!ksPass.isBlank()) {
+                System.setProperty("javax.net.ssl.keyStorePassword", ksPass);
             }
         }
+
+//        final String tsType = config.getProperty("trust_store_type", ksType);
+//        System.setProperty("Djavax.net.ssl.trustStoreType", tsType);
+//
+//        String tsPath = config.getProperty("trust_store_path");
+//        if (tsPath != null && !tsPath.isBlank()) {
+//            System.setProperty("Djavax.net.ssl.trustStore", tsPath);
+//            String tsPass = config.getProperty("trust_store_password", "");
+//            if (!tsPass.isBlank()) {
+//                System.setProperty("Djavax.net.ssl.trustStorePassword", tsPass);
+//            }
+//        }
 
         mqttBroker.startServer(config, List.of(interceptHandler), null, authenticator, authorizatorPolicy);
     }

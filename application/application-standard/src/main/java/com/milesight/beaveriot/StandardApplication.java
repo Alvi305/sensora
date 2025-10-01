@@ -28,8 +28,6 @@ public class StandardApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(StandardApplication.class, args);
-        System.out.println("javax.net.ssl.trustStore=" + System.getProperty("javax.net.ssl.trustStore"));
-        System.out.println("javax.net.ssl.trustStoreType=" + System.getProperty("javax.net.ssl.trustStoreType"));
         System.out.println("javax.net.ssl.keyStore=" + System.getProperty("javax.net.ssl.keyStore"));
     }
 

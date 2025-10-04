@@ -192,11 +192,11 @@ oauth2:
 
 mqtt:
   broker:
-    mqtt_port: 8883
+    mqtt_port: 8883 # override mqtt port to be only tls eventhough mqtts exist
     ws_path: /mqtt
     ws_port: 8083
     moquette:
-      port: ${mqtt.broker.mqtt_port:1883}
+#      port: ${mqtt.broker.mqtt_port:1883} Uncomment to activate clear text TCP but pass in an actual port
       host: 0.0.0.0
       allow_anonymous: false
       persistence_enabled: false
@@ -207,14 +207,14 @@ mqtt:
           message_size: 1048576
     tls:
       enabled: true
-      keyStorePath : "C:/sensora/sensora_cert_generator/java/broker-keystore.jks"
-      keyStorePassword : "changeit"
-      keystoreType: "JKS"
+      keyStorePath : "${KEYSTORE_PATH:}"
+      keyStorePassword : "${KS_PASSWD:}"
+      keystoreType: "${KS_TYPE:PKCS12}"
 
       clientAuth: false
-      truststorePath: "C:/sensora/sensora_certs/java/broker-truststore.jks"
-      truststorePassword: "changeit"
-      trustStoreType: "JKS"
+      truststorePath: "${TRUSTSTORE_PATH}"
+      truststorePassword: "${TS_PASSWD}"
+      trustStoreType: "${TS_TYPE:PKCS12}"
 
 
 resource:

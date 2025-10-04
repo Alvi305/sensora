@@ -24,13 +24,14 @@ public class EmbeddedMqttBrokerBridgeConfiguration {
         // Host
         properties.setProperty("host", mqttBrokerSettings.getHost() != null ? mqttBrokerSettings.getHost() : "0.0.0.0");
 
+        properties.setProperty("port", "disabled");// disable default tcp mqtt clear-text
 
-        properties.setProperty("port", "disabled"); // disable default 1883 clear-text
         if (mqttBrokerSettings.getMqttPort() != null) {
             properties.setProperty("ssl_port", String.valueOf(mqttBrokerSettings.getMqttPort()));
         }
 
 
+        // comment this out to run on clear text port
         if (mqttBrokerSettings.getTls() == null || !Boolean.TRUE.equals(mqttBrokerSettings.getTls().getEnabled())) {
             throw new IllegalStateException("TLS-only mode requested: set mqtt.broker.tls.enabled=true and configure keystore.");
         }
@@ -60,10 +61,14 @@ public class EmbeddedMqttBrokerBridgeConfiguration {
                     (tls.getTrustStoreType() == null || tls.getTrustStoreType().isBlank()) ? properties.getProperty("trust_store_type","PKCS12") : tls.getTrustStoreType());
         }
 
-        // Websockets disabled for TLS-only TCP
-        properties.setProperty("websocket_port", "disabled");
-        properties.setProperty("secure_websocket_port", "disabled");
+        if (mqttBrokerSettings.getWsPort() != null)
+        {
+            properties.setProperty("websocket_port", String.valueOf(mqttBrokerSettings.getWsPort()));
+        }
 
+        if (mqttBrokerSettings.getWsPath() != null) {
+            properties.setProperty("websocket_path", mqttBrokerSettings.getWsPath());
+        }
 
         properties.setProperty("allow_anonymous", "false");
         properties.setProperty("persistence_enabled", "false");

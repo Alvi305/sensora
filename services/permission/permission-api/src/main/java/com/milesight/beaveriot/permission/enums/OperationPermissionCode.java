@@ -13,6 +13,7 @@ public enum OperationPermissionCode implements MenuItem {
     DASHBOARD_VIEW(1001L, "dashboard.view", MenuCode.DASHBOARD),
     DASHBOARD_ADD(1002L, "dashboard.add", MenuCode.DASHBOARD),
     DASHBOARD_EDIT(1003L, "dashboard.edit", MenuCode.DASHBOARD),
+    DASHBOARD_DELETE(1004L, "dashboard.delete", MenuCode.DASHBOARD),
 
     DEVICE_VIEW(2001L, "device.view", MenuCode.DEVICE),
     DEVICE_ADD(2002L, "device.add", MenuCode.DEVICE),
@@ -27,7 +28,6 @@ public enum OperationPermissionCode implements MenuItem {
 
     ENTITY_DATA_VIEW(4001L, "entity_data.view", MenuCode.ENTITY_DATA),
     ENTITY_DATA_EDIT(4002L, "entity_data.edit", MenuCode.ENTITY_DATA),
-    ENTITY_DATA_EXPORT(4003L, "entity_data.export", MenuCode.ENTITY_DATA),
 
     WORKFLOW_VIEW(5001L, "workflow.view", MenuCode.WORKFLOW),
     WORKFLOW_ADD(5002L, "workflow.add", MenuCode.WORKFLOW),

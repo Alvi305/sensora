@@ -4,15 +4,7 @@ import com.milesight.beaveriot.base.response.ResponseBody;
 import com.milesight.beaveriot.base.response.ResponseBuilder;
 import com.milesight.beaveriot.entity.dto.EntityQuery;
 import com.milesight.beaveriot.entity.dto.EntityResponse;
-import com.milesight.beaveriot.entity.model.request.EntityAdvancedSearchQuery;
-import com.milesight.beaveriot.entity.model.request.EntityAggregateQuery;
-import com.milesight.beaveriot.entity.model.request.EntityCreateRequest;
-import com.milesight.beaveriot.entity.model.request.EntityDeleteRequest;
-import com.milesight.beaveriot.entity.model.request.EntityExportRequest;
-import com.milesight.beaveriot.entity.model.request.EntityHistoryQuery;
-import com.milesight.beaveriot.entity.model.request.EntityModifyRequest;
-import com.milesight.beaveriot.entity.model.request.ServiceCallRequest;
-import com.milesight.beaveriot.entity.model.request.UpdatePropertyEntityRequest;
+import com.milesight.beaveriot.entity.model.request.*;
 import com.milesight.beaveriot.entity.model.response.EntityAggregateResponse;
 import com.milesight.beaveriot.entity.model.response.EntityHistoryResponse;
 import com.milesight.beaveriot.entity.model.response.EntityLatestResponse;
@@ -37,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author loong
@@ -53,13 +46,27 @@ public class EntityController {
     @Autowired
     EntityExportService entityExportService;
 
-    @OperationPermission(codes = {OperationPermissionCode.DASHBOARD_EDIT, OperationPermissionCode.ENTITY_CUSTOM_VIEW, OperationPermissionCode.ENTITY_DATA_VIEW, OperationPermissionCode.WORKFLOW_ADD, OperationPermissionCode.WORKFLOW_EDIT})
+    @OperationPermission(codes = {
+            OperationPermissionCode.DASHBOARD_EDIT,
+            OperationPermissionCode.ENTITY_CUSTOM_VIEW,
+            OperationPermissionCode.ENTITY_DATA_VIEW,
+            OperationPermissionCode.WORKFLOW_ADD,
+            OperationPermissionCode.WORKFLOW_EDIT,
+            OperationPermissionCode.DEVICE_VIEW
+    })
     @PostMapping("/advanced-search")
     public ResponseBody<Page<EntityResponse>> advancedSearch(@RequestBody EntityAdvancedSearchQuery query) {
         return ResponseBuilder.success(entityService.advancedSearch(query));
     }
 
-    @OperationPermission(codes = {OperationPermissionCode.DASHBOARD_EDIT, OperationPermissionCode.ENTITY_CUSTOM_VIEW, OperationPermissionCode.ENTITY_DATA_VIEW, OperationPermissionCode.WORKFLOW_ADD, OperationPermissionCode.WORKFLOW_EDIT})
+    @OperationPermission(codes = {
+            OperationPermissionCode.DASHBOARD_EDIT,
+            OperationPermissionCode.ENTITY_CUSTOM_VIEW,
+            OperationPermissionCode.ENTITY_DATA_VIEW,
+            OperationPermissionCode.WORKFLOW_ADD,
+            OperationPermissionCode.WORKFLOW_EDIT,
+            OperationPermissionCode.DEVICE_VIEW
+    })
     @PostMapping("/search")
     public ResponseBody<Page<EntityResponse>> search(@RequestBody EntityQuery entityQuery) {
         Page<EntityResponse> entityResponse = entityService.search(entityQuery);
@@ -73,7 +80,14 @@ public class EntityController {
         return ResponseBuilder.success(entityResponse);
     }
 
-    @OperationPermission(codes = {OperationPermissionCode.DASHBOARD_EDIT, OperationPermissionCode.DASHBOARD_VIEW, OperationPermissionCode.ENTITY_DATA_VIEW, OperationPermissionCode.WORKFLOW_ADD, OperationPermissionCode.WORKFLOW_EDIT})
+    @OperationPermission(codes = {
+            OperationPermissionCode.DASHBOARD_EDIT,
+            OperationPermissionCode.DASHBOARD_VIEW,
+            OperationPermissionCode.ENTITY_DATA_VIEW,
+            OperationPermissionCode.WORKFLOW_ADD,
+            OperationPermissionCode.WORKFLOW_EDIT,
+            OperationPermissionCode.DEVICE_VIEW
+    })
     @PostMapping("/history/search")
     public ResponseBody<Page<EntityHistoryResponse>> historySearch(@RequestBody EntityHistoryQuery entityHistoryQuery) {
         Page<EntityHistoryResponse> entityHistoryResponse = entityValueService.historySearch(entityHistoryQuery);
@@ -92,6 +106,12 @@ public class EntityController {
     public ResponseBody<EntityLatestResponse> getEntityStatus(@PathVariable("entityId") Long entityId) {
         EntityLatestResponse entityLatestResponse = entityValueService.getEntityStatus(entityId);
         return ResponseBuilder.success(entityLatestResponse);
+    }
+
+    @OperationPermission(codes = {OperationPermissionCode.DASHBOARD_EDIT, OperationPermissionCode.DASHBOARD_VIEW, OperationPermissionCode.WORKFLOW_ADD, OperationPermissionCode.WORKFLOW_EDIT})
+    @PostMapping("/batch-get-status")
+    public ResponseBody<Map<String, EntityLatestResponse>> batchGetEntityStatus(@RequestBody @Valid EntityStatusBatchGetRequest entityStatusBatchGetRequest) {
+        return ResponseBuilder.success(entityValueService.batchGetEntityStatus(entityStatusBatchGetRequest.getEntityIds()));
     }
 
     @GetMapping("/{entityId}/meta")
@@ -121,8 +141,9 @@ public class EntityController {
      */
     @OperationPermission(codes = {OperationPermissionCode.ENTITY_CUSTOM_ADD})
     @PostMapping
-    public ResponseBody<EntityMetaResponse> createCustomEntity(@RequestBody @Valid EntityCreateRequest entityCreateRequest) {
-        return ResponseBuilder.success(entityService.createCustomEntity(entityCreateRequest));
+    public ResponseBody<Void> createCustomEntity(@RequestBody @Valid EntityCreateRequest entityCreateRequest) {
+        entityService.createCustomEntity(entityCreateRequest);
+        return ResponseBuilder.success();
     }
 
     /**
@@ -133,8 +154,9 @@ public class EntityController {
      */
     @OperationPermission(codes = {OperationPermissionCode.ENTITY_DATA_EDIT, OperationPermissionCode.ENTITY_CUSTOM_EDIT})
     @PutMapping("/{entityId}")
-    public ResponseBody<EntityMetaResponse> update(@PathVariable("entityId") Long entityId, @RequestBody @Valid EntityModifyRequest entityModifyRequest) {
-        return ResponseBuilder.success(entityService.updateEntityBasicInfo(entityId, entityModifyRequest));
+    public ResponseBody<Void> update(@PathVariable("entityId") Long entityId, @RequestBody @Valid EntityModifyRequest entityModifyRequest) {
+        entityService.updateEntityBasicInfo(entityId, entityModifyRequest);
+        return ResponseBuilder.success();
     }
 
     /**
@@ -152,7 +174,7 @@ public class EntityController {
      * Export entity data as a CSV file
      * @param entityExportRequest request body
      */
-    @OperationPermission(codes = OperationPermissionCode.ENTITY_DATA_EXPORT)
+    @OperationPermission(codes = OperationPermissionCode.ENTITY_DATA_VIEW)
     @GetMapping("/export")
     public void export(EntityExportRequest entityExportRequest, HttpServletResponse httpServletResponse) throws IOException {
         entityExportService.export(entityExportRequest, httpServletResponse);

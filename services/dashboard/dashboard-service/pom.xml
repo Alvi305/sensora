@@ -76,12 +76,12 @@
 
         <dependency>
             <groupId>com.milesight.beaveriot</groupId>
-            <artifactId>entity-api</artifactId>
+            <artifactId>dashboard-api</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.milesight.beaveriot</groupId>
-            <artifactId>dashboard-api</artifactId>
+            <artifactId>canvas-api</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -107,11 +107,6 @@
         <dependency>
             <groupId>com.milesight.beaveriot</groupId>
             <artifactId>data-jpa</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.milesight.beaveriot</groupId>
-            <artifactId>mqtt-api</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

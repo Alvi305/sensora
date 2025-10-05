@@ -1,0 +1,29 @@
+entity-template:
+  initial-entity-templates:
+    - identifier: '@status'
+      name: ${ fn.i18n('entity-template-service.entity.status.name') }
+      value_type: string
+      type: property
+      access_mod: R
+      attributes:
+        enum:
+          ONLINE: ${ fn.i18n('entity-template-service.entity.status.attributes.enum.online') }
+          OFFLINE: ${ fn.i18n('entity-template-service.entity.status.attributes.enum.offline') }
+    - identifier: '@location'
+      name: ${ fn.i18n('entity-template-service.entity.location.name') }
+      value_type: object
+      type: property
+      access_mod: R
+      children:
+        - identifier: '@address'
+          name: ${ fn.i18n('entity-template-service.entity.location.children.address.name') }
+          value_type: string
+          attributes:
+            min_length: 1
+            max_length: 255
+        - identifier: '@longitude'
+          name: ${ fn.i18n('entity-template-service.entity.location.children.longitude.name') }
+          value_type: double
+        - identifier: '@latitude'
+          name: ${ fn.i18n('entity-template-service.entity.location.children.latitude.name') }
+          value_type: double

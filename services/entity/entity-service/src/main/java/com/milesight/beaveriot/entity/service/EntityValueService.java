@@ -29,8 +29,9 @@ import com.milesight.beaveriot.entity.repository.EntityLatestRepository;
 import com.milesight.beaveriot.entity.repository.EntityRepository;
 import com.milesight.beaveriot.eventbus.api.EventResponse;
 import jakarta.persistence.EntityManager;
-import lombok.*;
-import lombok.extern.slf4j.*;
+import lombok.Data;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -41,16 +42,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.OptionalDouble;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -316,7 +308,7 @@ public class EntityValueService implements EntityValueServiceProvider {
 
         private EntityValueType valueType;
 
-        private Long updatedAt;
+        private Long timestamp;
     }
 
     @Override
@@ -364,7 +356,7 @@ public class EntityValueService implements EntityValueServiceProvider {
             EntityLatestValueCache nValue = convertEntityLatestCache(entityLatestPO);
             value.setValueType(nValue.getValueType());
             value.setValue(nValue.getValue());
-            value.setUpdatedAt(nValue.getUpdatedAt());
+            value.setTimestamp(nValue.getTimestamp());
         });
 
         return entityIdToValue.values().stream().toList();
@@ -394,7 +386,7 @@ public class EntityValueService implements EntityValueServiceProvider {
 
         lv.setValue(value);
         lv.setValueType(valueType);
-        lv.setUpdatedAt(entityLatestPO.getUpdatedAt());
+        lv.setTimestamp(entityLatestPO.getTimestamp());
         return lv;
     }
 
@@ -443,10 +435,12 @@ public class EntityValueService implements EntityValueServiceProvider {
             return Page.empty();
         }
 
-        Page<EntityHistoryPO> entityHistoryPage = entityHistoryRepository.findAll(f -> f.in(EntityHistoryPO.Fields.entityId, entityIdsWithPermission.toArray())
-                        .ge(EntityHistoryPO.Fields.timestamp, entityHistoryQuery.getStartTimestamp())
-                        .le(EntityHistoryPO.Fields.timestamp, entityHistoryQuery.getEndTimestamp()),
-                entityHistoryQuery.toPageable());
+        Page<EntityHistoryPO> entityHistoryPage = entityHistoryRepository.findByEntityIdInAndTimestampBetween(
+                entityIdsWithPermission,
+                entityHistoryQuery.getStartTimestamp(),
+                entityHistoryQuery.getEndTimestamp(),
+                entityHistoryQuery.toPageable()
+        );
         if (entityHistoryPage == null || entityHistoryPage.getContent().isEmpty()) {
             return Page.empty();
         }
@@ -653,21 +647,37 @@ public class EntityValueService implements EntityValueServiceProvider {
     }
 
     public EntityLatestResponse getEntityStatus(Long entityId) {
-        EntityLatestResponse entityLatestResponse = new EntityLatestResponse();
-        EntityPO entityPO = entityRepository.findOneWithDataPermission(filter -> filter.eq(EntityPO.Fields.id, entityId)).orElse(null);
-        if (entityPO == null) {
-            return entityLatestResponse;
+        return self().batchGetEntityStatus(List.of(entityId)).get(entityId.toString());
+    }
+
+    public Map<String, EntityLatestResponse> batchGetEntityStatus(List<Long> entityIds) {
+        if (entityIds == null || entityIds.isEmpty()) {
+            return Map.of();
         }
 
-        EntityLatestValueCache lv = self().findSpecificEntityValue(List.of(entityPO)).get(0);
-        if (lv.getValue() == null) {
-            return entityLatestResponse;
+        List<EntityPO> entityPOList = entityRepository.findAll(filter -> filter.in(EntityPO.Fields.id, entityIds.toArray()));
+        if (entityPOList == null || entityPOList.isEmpty()) {
+            return Map.of();
         }
 
-        entityLatestResponse.setUpdatedAt(lv.getUpdatedAt() == null ? null : lv.getUpdatedAt().toString());
-        entityLatestResponse.setValueType(lv.getValueType());
-        entityLatestResponse.setValue(lv.getValue());
-        return entityLatestResponse;
+        List<EntityLatestValueCache> entityValueList = self().findSpecificEntityValue(entityPOList);
+        assert entityPOList.size() == entityValueList.size();
+
+        Map<String, EntityLatestResponse> result = new HashMap<>();
+        for (int i = 0; i < entityPOList.size(); i++) {
+            EntityLatestResponse entityLatestResponse = new EntityLatestResponse();
+            EntityPO entityPO = entityPOList.get(i);
+            EntityLatestValueCache lv = entityValueList.get(i);
+            if (lv.getValue() != null) {
+                entityLatestResponse.setTimestamp(lv.getTimestamp() == null ? null : lv.getTimestamp().toString());
+                entityLatestResponse.setValueType(lv.getValueType());
+                entityLatestResponse.setValue(lv.getValue());
+            }
+
+            result.put(entityPO.getId().toString(), entityLatestResponse);
+        }
+
+        return result;
     }
 
     private EntityValueService self() {

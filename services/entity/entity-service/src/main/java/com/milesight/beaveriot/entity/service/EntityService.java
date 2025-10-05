@@ -23,7 +23,6 @@ import com.milesight.beaveriot.context.integration.model.Integration;
 import com.milesight.beaveriot.context.integration.model.event.EntityEvent;
 import com.milesight.beaveriot.context.model.EntityTag;
 import com.milesight.beaveriot.context.security.SecurityUserContext;
-import com.milesight.beaveriot.context.security.TenantContext;
 import com.milesight.beaveriot.data.filterable.Filterable;
 import com.milesight.beaveriot.data.util.PageConverter;
 import com.milesight.beaveriot.device.dto.DeviceNameDTO;
@@ -31,13 +30,10 @@ import com.milesight.beaveriot.device.facade.IDeviceFacade;
 import com.milesight.beaveriot.entity.dto.EntityDeviceGroup;
 import com.milesight.beaveriot.entity.dto.EntityQuery;
 import com.milesight.beaveriot.entity.dto.EntityResponse;
+import com.milesight.beaveriot.entity.dto.EntityWorkflowData;
 import com.milesight.beaveriot.entity.enums.EntitySearchColumn;
 import com.milesight.beaveriot.entity.model.dto.EntityAdvancedSearchCondition;
-import com.milesight.beaveriot.entity.model.request.EntityAdvancedSearchQuery;
-import com.milesight.beaveriot.entity.model.request.EntityCreateRequest;
-import com.milesight.beaveriot.entity.model.request.EntityModifyRequest;
-import com.milesight.beaveriot.entity.model.request.ServiceCallRequest;
-import com.milesight.beaveriot.entity.model.request.UpdatePropertyEntityRequest;
+import com.milesight.beaveriot.entity.model.request.*;
 import com.milesight.beaveriot.entity.model.response.EntityMetaResponse;
 import com.milesight.beaveriot.entity.po.EntityPO;
 import com.milesight.beaveriot.entity.repository.EntityHistoryRepository;
@@ -46,12 +42,15 @@ import com.milesight.beaveriot.entity.repository.EntityRepository;
 import com.milesight.beaveriot.eventbus.EventBus;
 import com.milesight.beaveriot.eventbus.api.EventResponse;
 import com.milesight.beaveriot.permission.enums.OperationPermissionCode;
+import com.milesight.beaveriot.rule.dto.WorkflowNameDTO;
+import com.milesight.beaveriot.rule.facade.IWorkflowFacade;
 import com.milesight.beaveriot.user.dto.MenuDTO;
 import com.milesight.beaveriot.user.enums.ResourceType;
 import com.milesight.beaveriot.user.facade.IUserFacade;
 import jakarta.annotation.Nullable;
-import lombok.*;
-import lombok.extern.slf4j.*;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -63,16 +62,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -112,6 +102,9 @@ public class EntityService implements EntityServiceProvider {
 
     @Autowired
     private EntityTagService entityTagService;
+
+    @Autowired
+    private IWorkflowFacade workflowFacade;
 
     private static Entity convertPOToEntity(EntityPO entityPO, Map<String, DeviceNameDTO> deviceIdToDetails) {
         String integrationId = null;
@@ -451,8 +444,8 @@ public class EntityService implements EntityServiceProvider {
         log.info("delete entities: {}", entityIdList);
 
         entityRepository.deleteAllById(entityIdList);
-        entityHistoryRepository.deleteByEntityIds(entityIdList);
-        entityLatestRepository.deleteByEntityIds(entityIdList);
+        entityHistoryRepository.deleteByEntityIdIn(entityIdList);
+        entityLatestRepository.deleteByEntityIdIn(entityIdList);
         userFacade.deleteResource(ResourceType.ENTITY, entityIdList);
 
         List<Entity> entityList = convertPOListToEntities(entityPOList);
@@ -598,7 +591,8 @@ public class EntityService implements EntityServiceProvider {
     private EntityResponse convertEntityPOToEntityResponse(EntityPO entityPO,
                                                            Map<String, Integration> integrationMap,
                                                            Map<String, DeviceNameDTO> deviceIdToDetails,
-                                                           Map<String, EntityPO> parentKeyMap) {
+                                                           Map<String, EntityPO> parentKeyMap,
+                                                           Map<Long, WorkflowNameDTO> entityWorkflowMap) {
         String deviceName = null;
         String deviceGroupId = null;
         String deviceGroupName = null;
@@ -625,7 +619,6 @@ public class EntityService implements EntityServiceProvider {
         }
 
         final EntityPO parentEntity = parentKeyMap.get(entityPO.getParent());
-        final String parentName = parentEntity == null ? null : parentEntity.getName();
         final EntityDeviceGroup deviceGroup = deviceGroupId == null ? null : new EntityDeviceGroup(deviceGroupId, deviceGroupName);
 
         EntityResponse response = new EntityResponse();
@@ -636,7 +629,7 @@ public class EntityService implements EntityServiceProvider {
         response.setEntityKey(entityPO.getKey());
         response.setEntityType(entityPO.getType());
         response.setEntityName(entityPO.getName());
-        response.setEntityParentName(entityPO.getParent() == null ? null : parentName);
+        response.setEntityParentName(parentEntity == null ? null : parentEntity.getName());
         response.setEntityValueAttribute(entityPO.getValueAttribute());
         response.setEntityValueType(entityPO.getValueType());
         response.setEntityIsCustomized(entityPO.checkIsCustomizedEntity());
@@ -644,6 +637,10 @@ public class EntityService implements EntityServiceProvider {
         response.setEntityUpdatedAt(entityPO.getUpdatedAt());
         response.setEntityDescription(entityPO.getDescription());
         response.setDeviceGroup(deviceGroup);
+        response.setWorkflowData(Optional.ofNullable(entityWorkflowMap.get(parentEntity == null ? entityPO.getId() : parentEntity.getId()))
+                .map(workflowNameDTO -> new EntityWorkflowData(workflowNameDTO.getWorkflowId().toString(), workflowNameDTO.getName()))
+                .orElse(null)
+        );
         return response;
     }
 
@@ -726,6 +723,12 @@ public class EntityService implements EntityServiceProvider {
                 .distinct()
                 .toList();
         Map<String, DeviceNameDTO> deviceIdToDetails = deviceIdToDetails(foundDeviceIds);
+        Map<Long, WorkflowNameDTO> entityWorkflowMap = new HashMap<>();
+        workflowFacade.getWorkflowsByEntities(parentEntityPOList.stream()
+                .filter(entityPO -> entityPO.getType().equals(EntityType.SERVICE))
+                .map(EntityPO::getId)
+                .toList()
+        ).forEach(workflowNameDTO -> entityWorkflowMap.put(workflowNameDTO.getEntityId(),  workflowNameDTO));
         Set<String> integrationIds = entityPOPage.stream()
                 .filter(entityPO -> AttachTargetType.INTEGRATION.equals(entityPO.getAttachTarget()))
                 .map(EntityPO::getAttachTargetId)
@@ -733,7 +736,7 @@ public class EntityService implements EntityServiceProvider {
         Map<String, Integration> integrationMap = integrationServiceProvider.findIntegrations(i -> integrationIds.contains(i.getId()))
                 .stream()
                 .collect(Collectors.toMap(Integration::getId, Function.identity(), (v1, v2) -> v1));
-        return entityPOPage.map(entityPO -> convertEntityPOToEntityResponse(entityPO, integrationMap, deviceIdToDetails, parentKeyMap));
+        return entityPOPage.map(entityPO -> convertEntityPOToEntityResponse(entityPO, integrationMap, deviceIdToDetails, parentKeyMap, entityWorkflowMap));
     }
 
     public EntityMetaResponse getEntityMeta(Long entityId) {
@@ -881,64 +884,50 @@ public class EntityService implements EntityServiceProvider {
      * @return entity metadata
      */
     @Transactional(rollbackFor = Throwable.class)
-    public EntityMetaResponse updateEntityBasicInfo(Long entityId, EntityModifyRequest entityModifyRequest) {
+    public void updateEntityBasicInfo(Long entityId, EntityModifyRequest entityModifyRequest) {
         if (!StringUtils.hasText(entityModifyRequest.getName()) && CollectionUtils.isEmpty(entityModifyRequest.getValueAttribute())) {
             throw ServiceException.with(ErrorCode.PARAMETER_VALIDATION_FAILED).detailMessage("name and valueAttribute can not be empty").build();
         }
 
-        EntityPO entityPO = entityRepository.findById(entityId)
-                .orElseThrow(ServiceException.with(ErrorCode.DATA_NO_FOUND).detailMessage("entity not found")::build);
+        Entity entity = this.findById(entityId);
+        if (entity == null) {
+            throw ServiceException.with(ErrorCode.DATA_NO_FOUND).detailMessage("entity not found").build();
+        }
+
         if (entityModifyRequest.getName() != null) {
-            entityPO.setName(entityModifyRequest.getName());
+            entity.setName(entityModifyRequest.getName());
         }
 
-        // Only custom entity can update attribute
-        if (!CollectionUtils.isEmpty(entityModifyRequest.getValueAttribute()) && entityPO.checkIsCustomizedEntity()) {
-            entityPO.setValueAttribute(entityModifyRequest.getValueAttribute());
-            List<ErrorHolder> errors = entityPO.validate();
-            if (!CollectionUtils.isEmpty(errors)) {
-                throw MultipleErrorException.with(HttpStatus.BAD_REQUEST.value(), "Validate entity error", errors);
-            }
+        // Only custom property entities' attribute can be updated
+        if (
+                !CollectionUtils.isEmpty(entityModifyRequest.getValueAttribute())
+                && entity.getIntegrationId().equals(IntegrationConstants.SYSTEM_INTEGRATION_ID)
+                && entity.getType().equals(EntityType.PROPERTY)
+        ) {
+            entity.setAttributes(entityModifyRequest.getValueAttribute());
         }
 
-        entityRepository.save(entityPO);
-
-        return convertEntityPOToEntityMetaResponse(entityPO);
+        this.batchSave(List.of(entity));
     }
 
     @Transactional(rollbackFor = Throwable.class)
-    public EntityMetaResponse createCustomEntity(EntityCreateRequest entityCreateRequest) {
-        String parentKey = entityCreateRequest.getParentIdentifier() != null
-                ? getCustomEntityKey(entityCreateRequest.getParentIdentifier())
-                : null;
-        String key = parentKey != null
-                ? getEntityKey(parentKey, entityCreateRequest.getIdentifier())
-                : getCustomEntityKey(entityCreateRequest.getIdentifier());
-        if (key == null) {
-            throw ServiceException.with(ErrorCode.PARAMETER_VALIDATION_FAILED).detailMessage("identifier is empty").build();
+    public void createCustomEntity(EntityCreateRequest entityCreateRequest) {
+        EntityBuilder entityBuilder = new EntityBuilder(IntegrationConstants.SYSTEM_INTEGRATION_ID)
+                .id(SnowflakeUtil.nextId())
+                .identifier(entityCreateRequest.getIdentifier())
+                .valueType(entityCreateRequest.getValueType())
+                .visible(entityCreateRequest.getVisible() == null || entityCreateRequest.getVisible())
+                .attributes(entityCreateRequest.getValueAttribute());
+
+        if (entityCreateRequest.getType().equals(EntityType.PROPERTY)) {
+            entityBuilder.property(entityCreateRequest.getName(), entityCreateRequest.getAccessMod());
+        } else {
+            throw ServiceException
+                    .with(ErrorCode.PARAMETER_VALIDATION_FAILED.getErrorCode(), "Invalid custom type to create: " + entityCreateRequest.getType())
+                    .build();
         }
 
-        EntityPO entityPO = new EntityPO();
-        entityPO.setId(SnowflakeUtil.nextId());
-        entityPO.setName(entityCreateRequest.getName());
-        entityPO.setType(entityCreateRequest.getType());
-        entityPO.setAccessMod(entityCreateRequest.getAccessMod());
-        entityPO.setValueAttribute(entityCreateRequest.getValueAttribute());
-        entityPO.setValueType(entityCreateRequest.getValueType());
-        entityPO.setKey(key);
-        entityPO.setParent(parentKey);
-        entityPO.setVisible(entityCreateRequest.getVisible() == null || entityCreateRequest.getVisible());
-        entityPO.setTenantId(TenantContext.getTenantId());
-        entityPO.setUserId(SecurityUserContext.getUserId());
-        entityPO.setAttachTarget(AttachTargetType.INTEGRATION);
-        entityPO.setAttachTargetId(IntegrationConstants.SYSTEM_INTEGRATION_ID);
-        List<ErrorHolder> errors = entityPO.validate();
-        if (!CollectionUtils.isEmpty(errors)) {
-            throw MultipleErrorException.with(HttpStatus.BAD_REQUEST.value(), "Validate entity error", errors);
-        }
-
-        entityPO = entityRepository.save(entityPO);
-        return convertEntityPOToEntityMetaResponse(entityPO);
+        self().batchSave(List.of(entityBuilder.build()));
     }
 
     public List<EntityPO> listEntityPOById(List<Long> entityIds) {
@@ -962,9 +951,24 @@ public class EntityService implements EntityServiceProvider {
         val attachTargetIds = new HashSet<>();
         if (integrationIds != null) {
             attachTargetIds.addAll(integrationIds);
-            val integrationDeviceIds = getDeviceIdsByIntegrationId(integrationIds);
-            if (!integrationDeviceIds.isEmpty()) {
-                intersectionDeviceIds = new HashSet<>(integrationDeviceIds);
+            intersectionDeviceIds = new HashSet<>(getDeviceIdsByIntegrationId(integrationIds));
+        }
+
+        val deviceIdCondition = columnToCondition.get(EntitySearchColumn.DEVICE_ID);
+        if (deviceIdCondition != null && deviceIdCondition.getOperator().equals(ComparisonOperator.EQ)) {
+            if (CollectionUtils.isEmpty(deviceIdCondition.getValues())) {
+                return Page.empty();
+            }
+
+            attachTargetIds.clear();
+            if (intersectionDeviceIds != null) {
+                intersectionDeviceIds = doIntersection(intersectionDeviceIds, List.of(deviceIdCondition.getValues().get(0)));
+            } else {
+                intersectionDeviceIds = new HashSet<>(List.of(deviceIdCondition.getValues().get(0)));
+            }
+
+            if (intersectionDeviceIds.isEmpty()) {
+                return Page.empty();
             }
         }
 
@@ -1198,13 +1202,6 @@ public class EntityService implements EntityServiceProvider {
             return null;
         }
         return String.format("%s.integration.%s", IntegrationConstants.SYSTEM_INTEGRATION_ID, identifier);
-    }
-
-    private String getEntityKey(String parent, String identifier) {
-        if (parent == null || identifier == null) {
-            return null;
-        }
-        return String.format("%s.%s", parent, identifier);
     }
 
     private EntityService self() {

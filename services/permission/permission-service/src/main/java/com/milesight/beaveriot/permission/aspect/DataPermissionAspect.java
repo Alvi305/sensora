@@ -2,14 +2,10 @@ package com.milesight.beaveriot.permission.aspect;
 
 import com.milesight.beaveriot.base.enums.ErrorCode;
 import com.milesight.beaveriot.base.exception.ServiceException;
-import com.milesight.beaveriot.context.security.SecurityUserContext;
 import com.milesight.beaveriot.permission.context.DataAspectContext;
 import com.milesight.beaveriot.permission.dto.PermissionDTO;
 import com.milesight.beaveriot.permission.enums.DataPermissionType;
-import com.milesight.beaveriot.permission.service.DashboardPermissionService;
-import com.milesight.beaveriot.permission.service.DevicePermissionService;
-import com.milesight.beaveriot.permission.service.EntityPermissionService;
-import com.milesight.beaveriot.permission.service.WorkflowPermissionService;
+import com.milesight.beaveriot.permission.service.PermissionService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -31,16 +27,9 @@ import java.util.List;
 @Aspect
 @ConditionalOnClass(Pointcut.class)
 @EnableAspectJAutoProxy(proxyTargetClass = true)
-public class DataPermissionAspect {
-
+public class DataPermissionAspect extends JpaRepositoryAspect {
     @Autowired
-    EntityPermissionService entityPermissionService;
-    @Autowired
-    DashboardPermissionService dashboardPermissionService;
-    @Autowired
-    DevicePermissionService devicePermissionService;
-    @Autowired
-    WorkflowPermissionService workflowPermissionService;
+    PermissionService permissionService;
 
     @Pointcut("execution(* com.milesight.beaveriot..*Repository.*(..))")
     public void pointCut() {
@@ -59,7 +48,7 @@ public class DataPermissionAspect {
 
         String tableName = RepositoryAspectUtils.getTableName(repositoryInterface);
         if (tableName == null || dataPermission == null) {
-            return joinPoint.proceed();
+            return proceed(joinPoint);
         }
 
         DataPermissionType type = dataPermission.type();
@@ -72,29 +61,15 @@ public class DataPermissionAspect {
             throw ServiceException.with(ErrorCode.PARAMETER_SYNTAX_ERROR).detailMessage("data permission column name is not exist").build();
         }
 
-        Long userId = SecurityUserContext.getUserId();
-        if (userId == null) {
-            throw ServiceException.with(ErrorCode.FORBIDDEN_PERMISSION).detailMessage("user not logged in").build();
-        }
-
-        PermissionDTO permissionDTO = switch (type) {
-            case ENTITY -> entityPermissionService.getEntityPermission(userId);
-            case DEVICE -> devicePermissionService.getDevicePermission(userId);
-            case DASHBOARD -> dashboardPermissionService.getDashboardPermission(userId);
-            case WORKFLOW -> workflowPermissionService.getWorkflowPermission(userId);
-        };
-
-        if (permissionDTO == null) {
-            throw ServiceException.with(ErrorCode.PARAMETER_SYNTAX_ERROR).detailMessage("unknown data permission type").build();
-        }
+        PermissionDTO permissionDTO = permissionService.getDataPermission(type);
 
         if (permissionDTO.isHaveAllPermissions()) {
-            return joinPoint.proceed();
+            return proceed(joinPoint);
         }
 
         List<String> dataIds = permissionDTO.getIds();
         if (dataIds.isEmpty()) {
-            throw ServiceException.with(ErrorCode.FORBIDDEN_PERMISSION).detailMessage("user does not have data permission").build();
+            throw ServiceException.with(ErrorCode.NO_DATA_PERMISSION).detailMessage("user does not have data permission").build();
         }
 
         DataAspectContext.setDataPermissionContext(tableName, DataAspectContext.DataPermissionContext.builder()

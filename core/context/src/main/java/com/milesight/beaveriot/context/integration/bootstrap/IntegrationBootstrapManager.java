@@ -2,7 +2,6 @@ package com.milesight.beaveriot.context.integration.bootstrap;
 
 import com.milesight.beaveriot.base.exception.BootstrapException;
 import com.milesight.beaveriot.base.exception.ConfigurationException;
-import com.milesight.beaveriot.context.api.IntegrationServiceProvider;
 import com.milesight.beaveriot.context.constants.IntegrationConstants;
 import com.milesight.beaveriot.context.integration.IntegrationContext;
 import com.milesight.beaveriot.context.integration.entity.EntityLoader;
@@ -30,24 +29,22 @@ import java.util.Map;
  * @author leon
  */
 @Slf4j
-@Order(0)
+@Order(2)
 public class IntegrationBootstrapManager implements CommandLineRunner {
 
     private final YamlPropertySourceFactory propertySourceFactory;
     private final IntegrationContext integrationContext = new IntegrationContext();
     private final ObjectProvider<EntityLoader> entityLoaders;
     private final ObjectProvider<IntegrationBootstrap> integrationBootstrapList;
-    private final IntegrationServiceProvider integrationStorageProvider;
 
-    public IntegrationBootstrapManager(ObjectProvider<EntityLoader> entityLoaders, ObjectProvider<IntegrationBootstrap> integrationBootstraps, IntegrationServiceProvider integrationStorageProvider) {
+    public IntegrationBootstrapManager(ObjectProvider<EntityLoader> entityLoaders,
+                                       ObjectProvider<IntegrationBootstrap> integrationBootstraps) {
         this.entityLoaders = entityLoaders;
         this.integrationBootstrapList = integrationBootstraps;
-        this.integrationStorageProvider = integrationStorageProvider;
         this.propertySourceFactory = new YamlPropertySourceFactory();
     }
 
     public void onStarted() {
-
         // Add default integration: "system"
         integrationContext.cacheIntegration(
                 new Integration(IntegrationConstants.SYSTEM_INTEGRATION_ID, IntegrationConstants.SYSTEM_INTEGRATION_ID, false),

@@ -136,6 +136,11 @@
         </dependency>
         <dependency>
             <groupId>com.milesight.beaveriot</groupId>
+            <artifactId>canvas-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.milesight.beaveriot</groupId>
             <artifactId>authentication-service</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -152,6 +157,11 @@
         <dependency>
             <groupId>com.milesight.beaveriot</groupId>
             <artifactId>entity-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.milesight.beaveriot</groupId>
+            <artifactId>entity-template-service</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -173,6 +183,11 @@
         <dependency>
             <groupId>com.milesight.beaveriot</groupId>
             <artifactId>resource-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.milesight.beaveriot</groupId>
+            <artifactId>blueprint-service</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -286,6 +301,12 @@
                 </executions>
             </plugin>
         </plugins>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
     </build>
 
 </project>

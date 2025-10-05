@@ -2,6 +2,9 @@ server:
   port: 9200
 
 spring:
+  config:
+    import:
+      - optional:classpath:entity-template.yml
   main:
     allow-bean-definition-overriding: true
   jackson:
@@ -198,7 +201,7 @@ mqtt:
     moquette:
       port: ${mqtt.broker.mqtt_port:1883}
       host: 0.0.0.0
-      allow_anonymous: true
+      allow_anonymous: false
       persistence_enabled: false
       websocket_port: ${mqtt.broker.ws_port:8083}
       websocket_path: ${mqtt.broker.ws_path:/mqtt}
@@ -215,6 +218,18 @@ resource:
     access_key: ${RESOURCE_STORAGE_S3_ACCESS_KEY:}
     access_secret: ${RESOURCE_STORAGE_S3_ACCESS_SECRET:}
     bucket: ${RESOURCE_STORAGE_S3_BUCKET:}
+
+application:
+  version: ${beaver-iot.version}
+
+blueprint:
+  library:
+    default_address:
+      type: GITHUB
+      url: https://github.com/zakersimonjack/beaver-iot-blueprint.git
+      branch: main
+    sync_frequency: 3h
+    clean_frequency: 1d
 
 logging:
   level:

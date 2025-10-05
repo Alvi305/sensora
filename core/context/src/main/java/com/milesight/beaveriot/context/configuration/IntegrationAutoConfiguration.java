@@ -1,6 +1,5 @@
 package com.milesight.beaveriot.context.configuration;
 
-import com.milesight.beaveriot.context.api.IntegrationServiceProvider;
 import com.milesight.beaveriot.context.integration.bootstrap.IntegrationBootstrap;
 import com.milesight.beaveriot.context.integration.bootstrap.IntegrationBootstrapManager;
 import com.milesight.beaveriot.context.integration.entity.EntityLoader;
@@ -21,8 +20,10 @@ public class IntegrationAutoConfiguration {
 
     @Bean(destroyMethod = "onDestroy")
     @ConditionalOnMissingBean
-    public IntegrationBootstrapManager integrationBootstrapManager(ObjectProvider<EntityLoader> entityLoaders, ObjectProvider<IntegrationBootstrap> integrationBootstraps, IntegrationServiceProvider integrationStorageProvider) {
-        return new IntegrationBootstrapManager(entityLoaders, integrationBootstraps, integrationStorageProvider);
+    public IntegrationBootstrapManager integrationBootstrapManager(ObjectProvider<EntityLoader> entityLoaders,
+                                                                   ObjectProvider<IntegrationBootstrap> integrationBootstraps) {
+        return new IntegrationBootstrapManager(entityLoaders,
+                integrationBootstraps);
     }
 
     @Bean

@@ -24,12 +24,13 @@ public class EmbeddedMqttBrokerBridgeConfiguration {
         // Host
         properties.setProperty("host", mqttBrokerSettings.getHost() != null ? mqttBrokerSettings.getHost() : "0.0.0.0");
 
-        properties.setProperty("port", "disabled");// disable default tcp mqtt clear-text
-
         if (mqttBrokerSettings.getMqttPort() != null) {
-            properties.setProperty("ssl_port", String.valueOf(mqttBrokerSettings.getMqttPort()));
+            properties.setProperty("port", String.valueOf(mqttBrokerSettings.getMqttPort()));
         }
 
+        if (mqttBrokerSettings.getMqttsPort() != null) {
+            properties.setProperty("ssl_port", String.valueOf(mqttBrokerSettings.getMqttsPort()));
+        }
 
         // comment this out to run on clear text port
         if (mqttBrokerSettings.getTls() == null || !Boolean.TRUE.equals(mqttBrokerSettings.getTls().getEnabled())) {

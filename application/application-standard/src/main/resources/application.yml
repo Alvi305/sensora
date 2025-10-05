@@ -192,11 +192,12 @@ oauth2:
 
 mqtt:
   broker:
-    mqtt_port: 8883 # override mqtt port to be only tls eventhough mqtts exist
+    mqtt_port: 1883 # override mqtt port to be only tls eventhough mqtts exist
+    mqtts_port: 8883
     ws_path: /mqtt
     ws_port: 8083
     moquette:
-#      port: ${mqtt.broker.mqtt_port:1883} Uncomment to activate clear text TCP but pass in an actual port
+      port: ${mqtt.broker.mqtt_port:1883} # Uncomment to activate clear text TCP but pass in an actual port
       host: 0.0.0.0
       allow_anonymous: false
       persistence_enabled: false

@@ -47,7 +47,7 @@ public class EmbeddedMqttBrokerBridgeConfiguration {
         properties.setProperty("jks_path", tls.getKeyStorePath());
         properties.setProperty("key_store_password", tls.getKeyStorePassword());
         properties.setProperty("key_manager_password", tls.getKeyStorePassword());
-        properties.setProperty("key_store_type", (tls.getKeyStoreType() == null || tls.getKeyStoreType().isBlank()) ? "PKCS12" : tls.getKeyStoreType());
+        properties.setProperty("key_store_type",  tls.getKeyStoreType());
 
         // mTLS for tighter security
         if (Boolean.TRUE.equals(tls.getClientAuth())) {
